@@ -1,4 +1,4 @@
-const BASE = "https://payu-8obm.onrender.com";
+const BASE = "https://payu-8obm.onrender.com/api";
 
 async function request(method, path, body) {
   const res = await fetch(`${BASE}${path}`, {
