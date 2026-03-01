@@ -1,9 +1,7 @@
 import { useState, useRef } from "react";
-// PayU
-import { api, pollStatus } from "./api";
+import { api, pollStatus, payuApi, pollPayuStatus } from "./api";
 import UPIModal from "./UPIModal";
 import PayUModal from "./Components/payyumodel";
-
 // ─────────────────────────────────────────────────────────────────────────────
 // api.js — add these two PayU helpers alongside existing ones:
 //
@@ -27,40 +25,40 @@ import PayUModal from "./Components/payyumodel";
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Inline the PayU api helpers here so you can also just add to api.js
-async function request(method, path, body) {
-  const res = await fetch(`/api${path}`, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json();
-  if (!data.success)
-    throw new Error(data.errors?.join(", ") || data.message || "Error");
-  return data;
-}
+// async function request(method, path, body) {
+//   const res = await fetch(`/api${path}`, {
+//     method,
+//     headers: { "Content-Type": "application/json" },
+//     body: body ? JSON.stringify(body) : undefined,
+//   });
+//   const data = await res.json();
+//   if (!data.success)
+//     throw new Error(data.errors?.join(", ") || data.message || "Error");
+//   return data;
+// }
 
-const payuApi = {
-  initiate: (body) => request("POST", "/payu/initiate", body),
-  getStatus: (txnid) => request("GET", `/payu/status/${txnid}`),
-};
+// const payuApi = {
+//   initiate: (body) => request("POST", "/payu/initiate", body),
+//   getStatus: (txnid) => request("GET", `/payu/status/${txnid}`),
+// };
 
-function pollPayuStatus(txnid, onTick, interval = 3000, timeout = 300_000) {
-  const deadline = Date.now() + timeout;
-  const id = setInterval(async () => {
-    if (Date.now() > deadline) {
-      clearInterval(id);
-      onTick({ status: "TIMEOUT" });
-      return;
-    }
-    try {
-      const res = await payuApi.getStatus(txnid);
-      onTick(res.data);
-      if (["success", "failure", "TIMEOUT"].includes(res.data.status))
-        clearInterval(id);
-    } catch (_) {}
-  }, interval);
-  return () => clearInterval(id);
-}
+// function pollPayuStatus(txnid, onTick, interval = 3000, timeout = 300_000) {
+//   const deadline = Date.now() + timeout;
+//   const id = setInterval(async () => {
+//     if (Date.now() > deadline) {
+//       clearInterval(id);
+//       onTick({ status: "TIMEOUT" });
+//       return;
+//     }
+//     try {
+//       const res = await payuApi.getStatus(txnid);
+//       onTick(res.data);
+//       if (["success", "failure", "TIMEOUT"].includes(res.data.status))
+//         clearInterval(id);
+//     } catch (_) {}
+//   }, interval);
+//   return () => clearInterval(id);
+// }
 
 export default function App() {
   // ── Form state ──────────────────────────────────────────────────────────────
