@@ -1,12 +1,8 @@
-import { useState } from "react";
-
-// PayU UPI apps — same list as Cashfree modal for consistent UX
 const UPI_APPS = [
   {
     id: "phonepe",
     name: "PhonePe",
-    packageName: "com.phonepe.app", // Android package
-    intentApp: "phonepe", // iOS scheme
+    package: "com.phonepe.app",
     icon: (
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
         <rect width="36" height="36" rx="10" fill="#5f259f" />
@@ -20,8 +16,7 @@ const UPI_APPS = [
   {
     id: "gpay",
     name: "Google Pay",
-    packageName: "com.google.android.apps.nbu.paisa.user",
-    intentApp: "gpay",
+    package: "com.google.android.apps.nbu.paisa.user",
     icon: (
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
         <rect width="36" height="36" rx="10" fill="white" stroke="#e5e7eb" />
@@ -47,8 +42,7 @@ const UPI_APPS = [
   {
     id: "paytm",
     name: "Paytm",
-    packageName: "net.one97.paytm",
-    intentApp: "paytmmp",
+    package: "net.one97.paytm",
     icon: (
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
         <rect width="36" height="36" rx="10" fill="#00baf2" />
@@ -69,8 +63,7 @@ const UPI_APPS = [
   {
     id: "bhim",
     name: "BHIM UPI",
-    packageName: "in.org.npci.upiapp",
-    intentApp: "bhim",
+    package: "in.org.npci.upiapp",
     icon: (
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
         <rect width="36" height="36" rx="10" fill="#00529c" />
@@ -91,8 +84,7 @@ const UPI_APPS = [
   {
     id: "amazonpay",
     name: "Amazon Pay",
-    packageName: "in.amazon.mShop.android.shopping",
-    intentApp: "amazonpay",
+    package: "in.amazon.mShop.android.shopping",
     icon: (
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
         <rect width="36" height="36" rx="10" fill="#232f3e" />
@@ -124,8 +116,7 @@ const UPI_APPS = [
   {
     id: "any",
     name: "Any UPI App",
-    packageName: null,
-    intentApp: null,
+    package: null,
     icon: (
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
         <rect width="36" height="36" rx="10" fill="#f3f4f6" />
@@ -147,45 +138,31 @@ export default function PayUModal({
   loading,
   activeId,
   amount,
-  payuData,
+  upiLink,
+  intentURIData,
 }) {
-  const [launched, setLaunched] = useState(false);
-
   if (!isOpen) return null;
-
-  // Build UPI intent deep link using PayU's intentURIData
-  // PayU returns intentURIData in the _payment response (S2S flow)
-  // For web: we use the generic upi:// deep link from payuData.intentUri
-  const buildDeepLink = (app, intentUri) => {
-    if (!intentUri) return null;
-
-    // If a specific app is chosen, append package info to the intent URI
-    if (app.packageName) {
-      return `${intentUri}&package=${app.packageName}`;
-    }
-    return intentUri; // generic — lets device choose
-  };
 
   const handleSelect = (app) => {
     if (loading) return;
 
-    // If we already have intentUri from PayU S2S response, open directly
-    if (payuData?.intentUri) {
-      const deepLink = buildDeepLink(app, payuData.intentUri);
-      if (deepLink) {
-        window.location.href = deepLink;
-        setLaunched(true);
+    let deepLink = upiLink; // fallback: generic upi:// link
+
+    if (intentURIData) {
+      if (app.package) {
+        // Android intent — opens specific app directly
+        deepLink = `intent://pay?${intentURIData}#Intent;scheme=upi;package=${app.package};end`;
+      } else {
+        // Generic — OS shows UPI app chooser
+        deepLink = `upi://pay?${intentURIData}`;
       }
-      onSelectApp(app, deepLink);
-    } else {
-      // No intent URI yet — pass selection up to App so it can call the backend first
-      onSelectApp(app, null);
     }
+
+    onSelectApp(app, deepLink);
   };
 
   return (
     <>
-      {/* Backdrop */}
       <div
         onClick={() => !loading && onClose()}
         style={{
@@ -198,13 +175,12 @@ export default function PayUModal({
         }}
       />
 
-      {/* Modal */}
       <div
         style={{
           position: "fixed",
           top: "50%",
           left: "50%",
-          transform: "translate(-50%, -50%)",
+          transform: "translate(-50%,-50%)",
           zIndex: 1001,
           width: "100%",
           maxWidth: 380,
@@ -213,6 +189,8 @@ export default function PayUModal({
           padding: "28px 24px",
           boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
           animation: "modalPop 0.25s cubic-bezier(0.34,1.56,0.64,1)",
+          maxHeight: "90vh",
+          overflowY: "auto",
         }}
       >
         {/* Header */}
@@ -225,7 +203,6 @@ export default function PayUModal({
           }}
         >
           <div>
-            {/* PayU badge */}
             <div
               style={{
                 display: "flex",
@@ -239,8 +216,6 @@ export default function PayUModal({
                   background: "#FF6B35",
                   borderRadius: 6,
                   padding: "2px 8px",
-                  display: "inline-flex",
-                  alignItems: "center",
                 }}
               >
                 <span
@@ -299,8 +274,30 @@ export default function PayUModal({
           </button>
         </div>
 
-        {/* Divider */}
         <div style={{ height: 1, background: "#f0f0f0", margin: "16px 0" }} />
+
+        {/* Intent status */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: upiLink ? "#f0fdf4" : "#fff7ed",
+            border: `1px solid ${upiLink ? "#86efac" : "#fdba74"}`,
+            borderRadius: 8,
+            padding: "8px 12px",
+            marginBottom: 14,
+            fontSize: 12,
+            color: upiLink ? "#16a34a" : "#ea580c",
+          }}
+        >
+          <span>{upiLink ? "✓" : "⚠"}</span>
+          <span>
+            {upiLink
+              ? "UPI intent ready — select your app"
+              : "UPI link unavailable — try refreshing"}
+          </span>
+        </div>
 
         <p
           style={{
@@ -314,12 +311,11 @@ export default function PayUModal({
           SELECT UPI APP
         </p>
 
-        {/* UPI App List */}
+        {/* App list */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {UPI_APPS.map((app, i) => {
             const isActive = activeId === app.id;
             const isDimmed = loading && !isActive;
-
             return (
               <button
                 key={app.id}
@@ -341,7 +337,6 @@ export default function PayUModal({
                 }}
               >
                 <span style={{ flexShrink: 0, lineHeight: 0 }}>{app.icon}</span>
-
                 <span
                   style={{
                     flex: 1,
@@ -352,7 +347,6 @@ export default function PayUModal({
                 >
                   {app.name}
                 </span>
-
                 {isActive && loading ? (
                   <span
                     style={{
@@ -394,28 +388,17 @@ export default function PayUModal({
             borderTop: "1px solid #f0f0f0",
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path
-              d="M7 1a6 6 0 100 12A6 6 0 007 1zm0 5.5v3M7 4.5v.5"
-              stroke="#aaa"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
           <span style={{ fontSize: 12, color: "#aaa" }}>
-            Secured by PayU Payments
+            🔒 Secured by PayU Payments
           </span>
         </div>
       </div>
 
       <style>{`
-        @keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes modalPop {
-          from { opacity: 0; transform: translate(-50%, -48%) scale(0.95); }
-          to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-        }
-        @keyframes fadeUp  { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes spin    { to { transform: rotate(360deg) } }
+        @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
+        @keyframes modalPop { from{opacity:0;transform:translate(-50%,-48%) scale(0.95)} to{opacity:1;transform:translate(-50%,-50%) scale(1)} }
+        @keyframes fadeUp  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin    { to{transform:rotate(360deg)} }
       `}</style>
     </>
   );

@@ -1,9 +1,8 @@
 import { useState, useRef } from "react";
-// Cashfree
 // PayU
 import { api, pollStatus } from "./api";
-import PayUModal from "./Components/payyumodel";
 import UPIModal from "./UPIModal";
+import PayUModal from "./Components/payyumodel";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // api.js — add these two PayU helpers alongside existing ones:
@@ -173,70 +172,39 @@ export default function App() {
     }
   };
 
-  // ── PAYU: User picks UPI app ────────────────────────────────────────────────
-  // PayU S2S flow: POST the params to PayU's _payment URL via hidden form,
-  // PayU returns intentURIData → open deep link to launch UPI app
-  const handlePayuApp = async (app, intentUri) => {
+  // ── PAYU: User picks UPI app ─────────────────────────────────────────────────
+  // Backend already called PayU S2S and returned upiLink + intentURIData
+  // Frontend just opens the deep link — no page redirect to PayU
+  const handlePayuApp = async (app, deepLink) => {
     setBanner(null);
     setPyUpiLoading(true);
     setPyActiveApp(app);
 
     try {
-      if (intentUri) {
-        // intentUri already available (from a previous S2S call) — just open it
-        window.location.href = intentUri;
-        setPyModalOpen(false);
-        pollPayuStatus(pyData.txnid, (tick) => {
-          if (["success", "failure", "TIMEOUT"].includes(tick.status)) {
-            setResult({
-              gateway: "PayU",
-              status: tick.status,
-              orderId: tick.txnid || pyData.txnid,
-              amount: form.amount,
-            });
-          }
-        });
-      } else {
-        // Submit hidden form to PayU _payment endpoint to get intent URI (S2S flow)
-        submitPayuForm(pyData.params, pyData.payuUrl);
-        setPyModalOpen(false);
+      const link = deepLink || pyData?.upiLink;
+      if (!link) throw new Error("No UPI link available. Please try again.");
 
-        // After redirect back, status will be on surl/furl
-        // Poll to confirm
-        pollPayuStatus(pyData.txnid, (tick) => {
-          if (["success", "failure", "TIMEOUT"].includes(tick.status)) {
-            setResult({
-              gateway: "PayU",
-              status: tick.status,
-              orderId: tick.txnid || pyData.txnid,
-              amount: form.amount,
-            });
-          }
-        });
-      }
+      // Open the UPI app on device
+      window.location.href = link;
+      setPyModalOpen(false);
+
+      // Poll for payment confirmation every 3s
+      pollPayuStatus(pyData.txnid, (tick) => {
+        if (["success", "failure", "TIMEOUT"].includes(tick.status)) {
+          setResult({
+            gateway: "PayU",
+            status: tick.status,
+            orderId: tick.txnid || pyData.txnid,
+            amount: tick.amount || form.amount,
+          });
+        }
+      });
     } catch (err) {
       setBanner(`PayU: ${err.message}`);
       setPyActiveApp(null);
     } finally {
       setPyUpiLoading(false);
     }
-  };
-
-  // Submits a hidden HTML form to PayU's _payment URL
-  // This is the standard PayU payment initiation method for web
-  const submitPayuForm = (params, url) => {
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = url;
-    Object.entries(params).forEach(([key, val]) => {
-      const input = document.createElement("input");
-      input.type = "hidden";
-      input.name = key;
-      input.value = val;
-      form.appendChild(input);
-    });
-    document.body.appendChild(form);
-    form.submit();
   };
 
   // ── Reset ───────────────────────────────────────────────────────────────────
@@ -471,7 +439,8 @@ export default function App() {
         loading={pyUpiLoading}
         activeId={pyActiveApp?.id}
         amount={form.amount}
-        payuData={pyData}
+        upiLink={pyData?.upiLink}
+        intentURIData={pyData?.intentURIData}
       />
     </div>
   );
